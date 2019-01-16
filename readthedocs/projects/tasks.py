@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 """
 Tasks related to projects.
 
@@ -26,8 +27,8 @@ import requests
 from builtins import str
 from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
-from django.urls import reverse
 from django.db.models import Q
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from slumber.exceptions import HttpClientError
@@ -56,12 +57,12 @@ from readthedocs.doc_builder.environments import (
 )
 from readthedocs.doc_builder.exceptions import (
     BuildEnvironmentError,
+    BuildEnvironmentWarning,
     BuildTimeoutError,
+    MkDocsYAMLParseError,
     ProjectBuildsSkippedError,
     VersionLockedError,
     YAMLParseError,
-    BuildEnvironmentWarning,
-    MkDocsYAMLParseError,
 )
 from readthedocs.doc_builder.loader import get_builder_class
 from readthedocs.doc_builder.python_environments import Conda, Virtualenv
@@ -73,16 +74,17 @@ from readthedocs.vcs_support import utils as vcs_support_utils
 from readthedocs.worker import app
 
 from .constants import LOG_TEMPLATE
-from .exceptions import RepositoryError, ProjectConfigurationError
+from .exceptions import ProjectConfigurationError, RepositoryError
 from .models import Domain, ImportedFile, Project
 from .signals import (
     after_build,
     after_vcs,
     before_build,
     before_vcs,
-    files_changed,
     domain_verify,
+    files_changed,
 )
+
 
 log = logging.getLogger(__name__)
 
@@ -212,7 +214,7 @@ class SyncRepositoryMixin(object):
         for reserved_name in [STABLE_VERBOSE_NAME, LATEST_VERBOSE_NAME]:
             if counter[reserved_name] > 1:
                 raise RepositoryError(
-                    RepositoryError.DUPLICATED_RESERVED_VERSIONS
+                    RepositoryError.DUPLICATED_RESERVED_VERSIONS,
                 )
 
 
@@ -270,7 +272,6 @@ class SyncRepositoryTaskStep(SyncRepositoryMixin):
                         'version': self.version.slug,
                     },
                 },
-
             )
         return False
 
@@ -398,7 +399,7 @@ class UpdateDocsTaskStep(SyncRepositoryMixin):
                 self.setup_env.failure = BuildEnvironmentError(
                     BuildEnvironmentError.GENERIC_WITH_BUILD_ID.format(
                         build_id=build_pk,
-                    )
+                    ),
                 )
                 self.setup_env.update_build(BUILD_STATE_FINISHED)
 
@@ -426,7 +427,7 @@ class UpdateDocsTaskStep(SyncRepositoryMixin):
                     self.build_env.failure = BuildEnvironmentError(
                         BuildEnvironmentError.GENERIC_WITH_BUILD_ID.format(
                             build_id=build_pk,
-                        )
+                        ),
                     )
                     self.build_env.update_build(BUILD_STATE_FINISHED)
 
@@ -465,7 +466,7 @@ class UpdateDocsTaskStep(SyncRepositoryMixin):
                 raise YAMLParseError(
                     YAMLParseError.GENERIC_WITH_PARSE_EXCEPTION.format(
                         exception=str(e),
-                    )
+                    ),
                 )
 
             self.save_build_config()
@@ -811,7 +812,7 @@ class UpdateDocsTaskStep(SyncRepositoryMixin):
                 type='app',
                 task=move_files,
                 args=[self.version.pk, socket.gethostname()],
-                kwargs=dict(html=True)
+                kwargs=dict(html=True),
             )
         except socket.error:
             log.exception('move_files task has failed on socket error.')
@@ -863,7 +864,7 @@ class UpdateDocsTaskStep(SyncRepositoryMixin):
         """
         builder = get_builder_class(builder_class)(
             self.build_env,
-            python_env=self.python_env
+            python_env=self.python_env,
         )
         success = builder.build()
         builder.move()
@@ -948,7 +949,7 @@ def move_files(version_pk, hostname, html=False, localmedia=False,
             project=version.project.slug,
             version=version.slug,
             msg='Moving files',
-        )
+        ),
     )
 
     if html:
@@ -1025,7 +1026,7 @@ def update_search(version_pk, commit, delete_non_commit_files=True):
     else:
         log.debug(
             'Unknown documentation type: %s',
-            version.project.documentation_type
+            version.project.documentation_type,
         )
         return
 
@@ -1120,7 +1121,7 @@ def fileify(version_pk, commit):
                     'Imported File not being built because no commit '
                     'information'
                 ),
-            )
+            ),
         )
         return
 
@@ -1131,7 +1132,7 @@ def fileify(version_pk, commit):
                 project=version.project.slug,
                 version=version.slug,
                 msg='Creating ImportedFiles',
-            )
+            ),
         )
         _manage_imported_files(version, path, commit)
     else:
@@ -1140,7 +1141,7 @@ def fileify(version_pk, commit):
                 project=project.slug,
                 version=version.slug,
                 msg='No ImportedFile files',
-            )
+            ),
         )
 
 
@@ -1212,7 +1213,7 @@ def email_notification(version, build, email):
             project=version.project.slug,
             version=version.slug,
             msg='sending email to: %s' % email,
-        )
+        ),
     )
 
     # We send only what we need from the Django model objects here to avoid
@@ -1276,7 +1277,7 @@ def webhook_notification(version, build, hook_url):
             project=project.slug,
             version='',
             msg='sending notification to: %s' % hook_url,
-        )
+        ),
     )
     try:
         requests.post(hook_url, data=data)
@@ -1309,7 +1310,7 @@ def update_static_metadata(project_pk, path=None):
             project=project.slug,
             version='',
             msg='Updating static metadata',
-        )
+        ),
     )
     translations = [trans.language for trans in project.translations.all()]
     languages = set(translations)
@@ -1332,7 +1333,7 @@ def update_static_metadata(project_pk, path=None):
                 project=project.slug,
                 version='',
                 msg='Cannot write to metadata.json: {0}'.format(e),
-            )
+            ),
         )
 
 
@@ -1412,7 +1413,7 @@ def finish_inactive_builds():
 @app.task(queue='web')
 def retry_domain_verification(domain_pk):
     """
-    Trigger domain verification on a domain
+    Trigger domain verification on a domain.
 
     :param domain_pk: a `Domain` pk to verify
     """
