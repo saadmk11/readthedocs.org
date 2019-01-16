@@ -61,6 +61,7 @@ from readthedocs.doc_builder.exceptions import (
     VersionLockedError,
     YAMLParseError,
     BuildEnvironmentWarning,
+    MkDocsYAMLParseError,
 )
 from readthedocs.doc_builder.loader import get_builder_class
 from readthedocs.doc_builder.python_environments import Conda, Virtualenv
@@ -72,7 +73,7 @@ from readthedocs.vcs_support import utils as vcs_support_utils
 from readthedocs.worker import app
 
 from .constants import LOG_TEMPLATE
-from .exceptions import RepositoryError
+from .exceptions import RepositoryError, ProjectConfigurationError
 from .models import Domain, ImportedFile, Project
 from .signals import (
     after_build,
@@ -274,6 +275,9 @@ class SyncRepositoryTaskStep(SyncRepositoryMixin):
         return False
 
 
+# Exceptions under ``throws`` argument are considered ERROR from a Build
+# perspective but as a WARNING for the application itself. These exception are
+# logged as ``INFO`` and they are not sent to Sentry.
 @app.task(
     bind=True,
     max_retries=5,
@@ -283,8 +287,11 @@ class SyncRepositoryTaskStep(SyncRepositoryMixin):
         ProjectBuildsSkippedError,
         YAMLParseError,
         BuildTimeoutError,
-        ProjectBuildsSkippedError
-    )
+        BuildEnvironmentWarning,
+        RepositoryError,
+        ProjectConfigurationError,
+        MkDocsYAMLParseError,
+    ),
 )
 def update_docs_task(self, project_id, *args, **kwargs):
     step = UpdateDocsTaskStep(task=self)
