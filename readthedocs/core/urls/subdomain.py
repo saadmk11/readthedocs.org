@@ -12,7 +12,7 @@ from django.conf.urls.static import static
 
 from readthedocs.core.views.serve import (
     redirect_page_with_filename,
-    redirect_project_slug, serve_docs, robots_txt,
+    redirect_project_slug, serve_docs, robots_txt, sitemap_xml,
 )
 from readthedocs.core.views import (
     server_error_500,
@@ -25,6 +25,7 @@ handler404 = server_error_404
 
 subdomain_urls = [
     url(r'robots.txt$', robots_txt, name='robots_txt'),
+    url(r'sitemap.xml$', sitemap_xml, name='sitemap.xml'),
 
     url(r'^(?:|projects/(?P<subproject_slug>{project_slug})/)'
         r'page/(?P<filename>.*)$'.format(**pattern_opts),
