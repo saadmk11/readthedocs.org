@@ -14,6 +14,7 @@ from django.http import Http404
 from django.conf import settings
 from django.urls import reverse
 
+from readthedocs.builds.constants import STABLE
 from readthedocs.rtd_tests.base import RequestFactoryTestMixin
 from readthedocs.projects import constants
 from readthedocs.projects.models import Project
@@ -103,6 +104,27 @@ class TestPrivateDocs(BaseDocServing):
         # Private projects/versions always return 404 for robots.txt
         self.assertEqual(response.status_code, 404)
 
+    @override_settings(
+        PYTHON_MEDIA=False,
+        USE_SUBDOMAIN=True,
+        PUBLIC_DOMAIN='readthedocs.io',
+        ROOT_URLCONF=settings.SUBDOMAIN_URLCONF,
+    )
+    def test_sitemap_xml(self):
+        response = self.client.get(
+            reverse('sitemap_xml'),
+            HTTP_HOST='private.readthedocs.io',
+        )
+        self.assertEqual(response.status_code, 404)
+
+        self.client.force_login(self.eric)
+        response = self.client.get(
+            reverse('sitemap_xml'),
+            HTTP_HOST='private.readthedocs.io',
+        )
+        # Private projects/versions always return 404 for robots.txt
+        self.assertEqual(response.status_code, 404)
+
 
 @override_settings(SERVE_DOCS=[constants.PRIVATE, constants.PUBLIC])
 class TestPublicDocs(BaseDocServing):
@@ -174,3 +196,39 @@ class TestPublicDocs(BaseDocServing):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b'My own robots.txt')
+
+    @override_settings(
+        PYTHON_MEDIA=False,
+        USE_SUBDOMAIN=True,
+        PUBLIC_DOMAIN='readthedocs.io',
+        ROOT_URLCONF=settings.SUBDOMAIN_URLCONF,
+    )
+    def test_default_robots_txt(self):
+        self.public.versions.update(active=True, built=True)
+        self.public.versions.filter(slug=STABLE).update(privacy_level=constants.PRIVATE)
+        response = self.client.get(
+            reverse('sitemap_xml'),
+            HTTP_HOST='public.readthedocs.io',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, 'application/xml')
+        for version in self.public.versions.filter(privacy_level=constants.PUBLIC):
+            self.assertContains(
+                response,
+                self.public.get_docs_url(
+                    version_slug=version.slug,
+                    lang_slug=self.project.language,
+                    private=False,
+                ),
+            )
+
+        # stable is marked as PRIVATE and should not appear here
+        stable = self.public.versions.get(slug=STABLE)
+        self.assertNotContains(
+            response,
+            self.public.get_docs_url(
+                version_slug=stable.slug,
+                lang_slug=self.project.language,
+                private=True,
+            ),
+        )
