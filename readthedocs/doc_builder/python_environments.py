@@ -9,6 +9,10 @@ import logging
 import os
 import shutil
 import yaml
+from shutil import copytree, rmtree, make_archive, unpack_archive, ignore_patterns
+
+from django.conf import settings
+
 
 from readthedocs.config import PIP, SETUPTOOLS, ParseError, parse as parse_yaml
 from readthedocs.config.models import PythonInstall, PythonInstallRequirements
@@ -262,22 +266,50 @@ class Virtualenv(PythonEnvironment):
     def venv_path(self):
         return os.path.join(self.project.doc_path, 'envs', self.version.slug)
 
+    def base_venv_path(self):
+        return os.path.join(settings.DOCROOT, 'base_env', 'base')
+
     def setup_base(self):
-        site_packages = '--no-site-packages'
-        if self.config.python.use_system_site_packages:
-            site_packages = '--system-site-packages'
         env_path = self.venv_path()
-        self.build_env.run(
-            self.config.python_interpreter,
-            '-mvirtualenv',
-            site_packages,
-            '--no-download',
-            env_path,
-            # Don't use virtualenv bin that doesn't exist yet
-            bin_path=None,
-            # Don't use the project's root, some config files can interfere
-            cwd='$HOME',
-        )
+        base_env_path = self.base_venv_path()
+
+        filename = base_env_path + '.zip'
+
+        print('yeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', filename)
+
+        if os.path.exists(filename):
+            if os.path.exists(env_path):
+                shutil.rmtree(env_path)
+            unpack_archive(filename, env_path, 'zip')
+            bin_path = os.path.join(
+                env_path,
+                'bin',
+                'activate'
+            )
+
+            self.build_env.run(
+                '.',
+                bin_path,
+                shell=True
+            )
+        else:
+            site_packages = '--no-site-packages'
+            if self.config.python.use_system_site_packages:
+                site_packages = '--system-site-packages'
+
+            self.build_env.run(
+                self.config.python_interpreter,
+                '-mvirtualenv',
+                site_packages,
+                '--no-download',
+                env_path,
+                # Don't use virtualenv bin that doesn't exist yet
+                bin_path=None,
+                # Don't use the project's root, some config files can interfere
+                cwd='$HOME',
+            )
+
+            make_archive(base_env_path, 'zip', env_path)
 
     def install_core_requirements(self):
         """Install basic Read the Docs requirements into the virtualenv."""
