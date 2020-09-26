@@ -21,12 +21,18 @@ from rest_framework_extensions.mixins import NestedViewSetMixin
 
 from readthedocs.builds.models import Build, Version
 from readthedocs.core.utils import trigger_build
+from readthedocs.oauth.models import RemoteRepository
 from readthedocs.projects.models import Project, EnvironmentVariable, ProjectRelationship
 from readthedocs.projects.views.mixins import ProjectImportMixin
 from readthedocs.redirects.models import Redirect
 
 
-from .filters import BuildFilter, ProjectFilter, VersionFilter
+from .filters import (
+    BuildFilter,
+    ProjectFilter,
+    RemoteRepositoryFilter,
+    VersionFilter,
+)
 from .mixins import ProjectQuerySetMixin, UpdateMixin
 from .permissions import PublicDetailPrivateListing, IsProjectAdmin
 from .renderers import AlphabeticalSortedJSONRenderer
@@ -39,6 +45,7 @@ from .serializers import (
     ProjectUpdateSerializer,
     RedirectCreateSerializer,
     RedirectDetailSerializer,
+    RemoteRepositorySerializer,
     SubprojectCreateSerializer,
     SubprojectSerializer,
     SubprojectDestroySerializer,
@@ -343,3 +350,15 @@ class EnvironmentVariablesViewSet(APIv3Settings, NestedViewSetMixin,
             'project': self._get_parent_project(),
         })
         serializer.save()
+
+
+class RemoteRepositoryViewSet(APIv3Settings, ListModelMixin, GenericViewSet):
+    model = RemoteRepository
+    serializer_class = RemoteRepositorySerializer
+    filterset_class = RemoteRepositoryFilter
+    queryset = RemoteRepository.objects.all()
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return queryset.filter(users=self.request.user)

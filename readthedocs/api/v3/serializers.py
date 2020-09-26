@@ -12,6 +12,7 @@ from rest_framework import serializers
 
 from readthedocs.builds.models import Build, Version
 from readthedocs.core.utils import slugify
+from readthedocs.oauth.models import RemoteRepository
 from readthedocs.projects.constants import (
     LANGUAGES,
     PROGRAMMING_LANGUAGES,
@@ -800,3 +801,25 @@ class EnvironmentVariableSerializer(serializers.ModelSerializer):
             'project',
             '_links',
         ]
+
+
+class RemoteRepositorySerializer(serializers.ModelSerializer):
+    created = serializers.DateTimeField(source='pub_date', read_only=True)
+    modified = serializers.DateTimeField(source='modified_date', read_only=True)
+
+    class Meta:
+        model = RemoteRepository
+        fields = [
+            'pk',
+            'name',
+            'full_name',
+            'description',
+            'avatar_url',
+            'ssh_url',
+            'clone_url',
+            'html_url',
+            'vcs',
+            'created',
+            'modified',
+        ]
+        read_only_fields = fields
